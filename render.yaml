@@ -1,0 +1,49 @@
+# Render Blueprint Specification for Faktura KSeF Fullstack App
+services:
+  # -------------------------------------------------------------
+  # Backend Service (FastAPI / Python)
+  # -------------------------------------------------------------
+  - type: web
+    name: faktura-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: MONGO_URL
+        sync: false # Set this in Render Dashboard to your MongoDB Atlas connection string
+      - key: DB_NAME
+        value: fakturson
+      - key: ADMIN_EMAIL
+        value: admin@faktura.pl
+      - key: ADMIN_PASSWORD
+        value: Admin123!
+      - key: KSEF_MODE
+        value: simulation
+      - key: KSEF_ENV
+        value: test
+      - key: PYTHON_VERSION
+        value: 3.10.12
+
+  # -------------------------------------------------------------
+  # Frontend Service (React / Static Site)
+  # -------------------------------------------------------------
+  - type: web
+    name: faktura-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: yarn install && yarn build
+    publishDir: build
+    envVars:
+      - key: REACT_APP_BACKEND_URL
+        fromService:
+          name: faktura-backend
+          type: web
+          property: host
+      - key: BUILD_PATH
+        value: build
+    routes:
+      # Support client-side routing (React Router)
+      - type: rewrite
+        source: /*
+        destination: /index.html

@@ -1,0 +1,198 @@
+{
+  "timestamp": "2026-06-14T20:20:54.875891",
+  "total": 19,
+  "passed": 19,
+  "failed": 0,
+  "success_rate": 100.0,
+  "results": [
+    {
+      "test": "Health check",
+      "passed": true,
+      "message": "",
+      "data": {
+        "status": "healthy"
+      }
+    },
+    {
+      "test": "Register new user",
+      "passed": true,
+      "message": "",
+      "data": {
+        "user_id": "user_f214c8e032c1"
+      }
+    },
+    {
+      "test": "Login admin",
+      "passed": true,
+      "message": "",
+      "data": {
+        "user_id": "user_c2ed6ef37866"
+      }
+    },
+    {
+      "test": "Login wrong password (401)",
+      "passed": true,
+      "message": "Got status 401",
+      "data": null
+    },
+    {
+      "test": "Auth /me",
+      "passed": true,
+      "message": "",
+      "data": {
+        "user_id": "user_c2ed6ef37866",
+        "email": "admin@faktura.pl",
+        "name": "Administrator",
+        "auth_provider": "password",
+        "role": "admin",
+        "picture": "",
+        "created_at": "2026-06-14T19:49:29.060456+00:00"
+      }
+    },
+    {
+      "test": "Dashboard summary",
+      "passed": true,
+      "message": "",
+      "data": {
+        "kpis": {
+          "revenue_month": 9440.0,
+          "expenses_month": 7680.0,
+          "vat_to_pay": 434.7,
+          "net_profit": 1760.0
+        },
+        "bars_count": 6
+      }
+    },
+    {
+      "test": "Companies list",
+      "passed": true,
+      "message": "",
+      "data": {
+        "count": 2
+      }
+    },
+    {
+      "test": "Clients list",
+      "passed": true,
+      "message": "",
+      "data": {
+        "count": 6
+      }
+    },
+    {
+      "test": "Invoices list",
+      "passed": true,
+      "message": "",
+      "data": {
+        "count": 9
+      }
+    },
+    {
+      "test": "Expenses list",
+      "passed": true,
+      "message": "",
+      "data": {
+        "count": 5
+      }
+    },
+    {
+      "test": "Templates list",
+      "passed": true,
+      "message": "",
+      "data": {
+        "count": 2
+      }
+    },
+    {
+      "test": "Create client",
+      "passed": true,
+      "message": "",
+      "data": {
+        "client_id": "553b2e12-767d-4454-b3dc-0494e34abb95"
+      }
+    },
+    {
+      "test": "Create invoice",
+      "passed": true,
+      "message": "",
+      "data": {
+        "invoice_id": "7ef1f64e-8c35-4870-b82d-c5e87b5e8288",
+        "number": "FV/2026/06/002"
+      }
+    },
+    {
+      "test": "Send invoice to KSeF",
+      "passed": true,
+      "message": "",
+      "data": {
+        "ksef_number": "5260001246-20260614-BD84972F4C31-45"
+      }
+    },
+    {
+      "test": "NIP validation",
+      "passed": true,
+      "message": "",
+      "data": {
+        "nip": "1234567890",
+        "valid": false,
+        "formatted": null
+      }
+    },
+    {
+      "test": "GUS lookup (simulated)",
+      "passed": true,
+      "message": "",
+      "data": {
+        "found": true,
+        "nip": "123-456-78-90",
+        "data": {
+          "name": "Innowacje Cyfrowe S.A.",
+          "street": "ul. Grunwaldzka 12",
+          "postal_code": "80-236",
+          "city": "Gda\u0144sk",
+          "regon": "220123456"
+        },
+        "message": "Pobrano dane z rejestru GUS (symulacja)"
+      }
+    },
+    {
+      "test": "Reports revenue",
+      "passed": true,
+      "message": "",
+      "data": {
+        "rows_count": 12,
+        "totals": {
+          "net": 52740.0,
+          "vat": 11716.2,
+          "gross": 64456.2,
+          "count": 10
+        }
+      }
+    },
+    {
+      "test": "Settings get",
+      "passed": true,
+      "message": "",
+      "data": {
+        "user_id": "user_c2ed6ef37866",
+        "base_currency": "PLN",
+        "counter_reset": "monthly",
+        "default_payment_days": 14,
+        "default_payment_method": "Przelew",
+        "email_template": "Dzie\u0144 dobry,\n\nW za\u0142\u0105czeniu przesy\u0142am faktur\u0119 {numer} na kwot\u0119 {kwota}.\nTermin p\u0142atno\u015bci: {termin}.\n\nPozdrawiam",
+        "invoice_scheme": "FV/{YYYY}/{MM}/{NNN}",
+        "ksef_env": "test",
+        "ksef_token": "",
+        "language": "pl",
+        "tax_year": 2026,
+        "theme": "light"
+      }
+    },
+    {
+      "test": "Logout",
+      "passed": true,
+      "message": "Status 200",
+      "data": null
+    }
+  ]
+}

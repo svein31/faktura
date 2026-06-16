@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Server-side PDF: install WeasyPrint + system deps; build pdf_gen.py (A4 invoice HTML) + GET /api/invoices/{id}/pdf endpoint",
+    "status": "in_progress"
+  },
+  {
+    "content": "Frontend: 'Pobierz PDF' button (download blob) in invoice detail + list",
+    "status": "pending"
+  },
+  {
+    "content": "Test PDF generation (curl + UI)",
+    "status": "pending"
+  },
+  {
+    "content": "Build deployment package: frontend prod build + backend + docker-compose (FastAPI+Mongo+Nginx) + Dockerfiles + .env.example + README (VPS cyberfolks)",
+    "status": "pending"
+  },
+  {
+    "content": "Create /app/out.zip and provide retrieval instructions",
+    "status": "pending"
+  }
+]

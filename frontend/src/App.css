@@ -1,0 +1,8 @@
+/* App-level styles. No global centering (keeps natural reading flow). */
+.App {
+    min-height: 100dvh;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}

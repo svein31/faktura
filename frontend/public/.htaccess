@@ -1,0 +1,14 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /faktura/
+
+  # Don't rewrite API requests — let them pass to Passenger backend
+  RewriteRule ^api(/.*)?$ - [L,PT]
+
+  # SPA fallback: serve index.html for all non-file, non-directory requests
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_FILENAME} !-l
+  RewriteRule . /faktura/index.html [L]
+</IfModule>
