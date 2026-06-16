@@ -1,11 +1,53 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { Save, Download, Upload, DatabaseBackup, CheckCircle2, XCircle, Loader2, FlaskConical, Clock } from "lucide-react";
+import { Save, Download, Upload, DatabaseBackup, CheckCircle2, XCircle, Loader2, FlaskConical, Clock, Send } from "lucide-react";
 import { useAppData } from "@/context/AppDataContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useI18n } from "@/lib/i18n";
 import { Card, Button, Input, Textarea, Select, Field, Tabs, Switch } from "@/components/ui-kit";
 import { PAYMENT_METHODS, PAYMENT_TERMS } from "@/lib/format";
+
+function KsefStepResults({ result, busy }) {
+  if (!result || busy) return null;
+  return (
+    <div className="space-y-2">
+      <div className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-semibold ${
+        result.success
+          ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+          : "border-red-200 bg-red-50 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
+      }`}>
+        {result.success ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <XCircle className="h-4 w-4 shrink-0" />}
+        {result.message || (result.success ? "Sukces" : "Błąd")}
+      </div>
+      {(result.steps || []).length > 0 && (
+        <div className="rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden">
+          {(result.steps || []).map((step, i) => (
+            <div key={i} className={`flex gap-3 border-b border-slate-100 dark:border-white/5 last:border-b-0 px-3 py-2.5 ${step.ok ? "" : "bg-red-50/60 dark:bg-red-500/5"}`}>
+              <div className="mt-0.5 shrink-0">
+                {step.ok ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-red-500" />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`text-sm font-medium ${step.ok ? "text-slate-700 dark:text-slate-200" : "text-red-700 dark:text-red-300"}`}>
+                    {i + 1}. {step.name}
+                  </span>
+                  {step.duration_ms > 0 && (
+                    <span className="flex items-center gap-1 text-[11px] text-slate-400 shrink-0">
+                      <Clock className="h-3 w-3" />{step.duration_ms} ms
+                    </span>
+                  )}
+                </div>
+                <p className={`mt-0.5 break-all font-mono text-[11px] leading-relaxed ${step.ok ? "text-slate-500 dark:text-slate-400" : "text-red-600 dark:text-red-400"}`}>
+                  {step.detail}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function schemePreview(scheme) {
   const d = new Date();
@@ -20,7 +62,9 @@ export default function Settings() {
   const [form, setForm] = useState(settings || {});
   const [saving, setSaving] = useState(false);
   const [ksefBusy, setKsefBusy] = useState(false);
+  const [ksefSendBusy, setKsefSendBusy] = useState(false);
   const [authTestResult, setAuthTestResult] = useState(null);
+  const [sendTestResult, setSendTestResult] = useState(null);
 
   useEffect(() => { if (settings) setForm(settings); }, [settings]);
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
@@ -35,6 +79,7 @@ export default function Settings() {
   const runAuthTest = async () => {
     setKsefBusy(true);
     setAuthTestResult(null);
+    setSendTestResult(null);
     try {
       const r = (await api.post("/tools/ksef-auth-test", {
         ksef_token: form.ksef_token,
@@ -49,6 +94,27 @@ export default function Settings() {
       toast.error("Błąd testu autoryzacji");
     } finally {
       setKsefBusy(false);
+    }
+  };
+
+  const runSendTest = async () => {
+    setKsefSendBusy(true);
+    setSendTestResult(null);
+    setAuthTestResult(null);
+    try {
+      const r = (await api.post("/tools/ksef-send-test", {
+        ksef_token: form.ksef_token,
+        ksef_env: form.ksef_env,
+      })).data;
+      setSendTestResult(r);
+      if (r.success) toast.success(`Testowa faktura wysłana! Numer KSeF: ${r.ksef_number}`);
+      else toast.error("Wysyłka testowej faktury nieudana — sprawdź szczegóły");
+    } catch (e) {
+      const detail = e?.response?.data?.detail || e?.message || "Nieznany błąd";
+      setSendTestResult({ success: false, steps: [{ name: "Błąd żądania", ok: false, detail, duration_ms: 0 }] });
+      toast.error("Błąd wysyłki testowej faktury");
+    } finally {
+      setKsefSendBusy(false);
     }
   };
   const exportJson = async () => {
@@ -148,54 +214,30 @@ export default function Settings() {
             </div>
           )}
 
-          {authTestResult && !ksefBusy && (
-            <div className="space-y-2">
-              <div className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-semibold ${
-                authTestResult.success
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
-                  : "border-red-200 bg-red-50 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
-              }`}>
-                {authTestResult.success
-                  ? <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  : <XCircle className="h-4 w-4 shrink-0" />}
-                {authTestResult.message || (authTestResult.success ? "Sukces" : "Błąd autoryzacji")}
-              </div>
+          <KsefStepResults result={authTestResult} busy={ksefBusy} />
 
-              <div className="rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden">
-                {(authTestResult.steps || []).map((step, i) => (
-                  <div
-                    key={i}
-                    className={`flex gap-3 border-b border-slate-100 dark:border-white/5 last:border-b-0 px-3 py-2.5 ${
-                      step.ok ? "" : "bg-red-50/60 dark:bg-red-500/5"
-                    }`}
-                  >
-                    <div className="mt-0.5 shrink-0">
-                      {step.ok
-                        ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                        : <XCircle className="h-4 w-4 text-red-500" />}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className={`text-sm font-medium ${step.ok ? "text-slate-700 dark:text-slate-200" : "text-red-700 dark:text-red-300"}`}>
-                          {i + 1}. {step.name}
-                        </span>
-                        {step.duration_ms > 0 && (
-                          <span className="flex items-center gap-1 text-[11px] text-slate-400 shrink-0">
-                            <Clock className="h-3 w-3" />{step.duration_ms} ms
-                          </span>
-                        )}
-                      </div>
-                      <p className={`mt-0.5 break-all font-mono text-[11px] leading-relaxed ${
-                        step.ok ? "text-slate-500 dark:text-slate-400" : "text-red-600 dark:text-red-400"
-                      }`}>
-                        {step.detail}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+          {/* Send test invoice */}
+          <div className="border-t border-slate-200 dark:border-white/10 pt-4 space-y-3">
+            <div>
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">Wyślij testową fakturę</div>
+              <div className="text-xs text-slate-400 mt-0.5">Wysyła minimalną fakturę (1 zł) do KSeF — sprawdza pełny flow wraz z wysyłką dokumentu.</div>
             </div>
-          )}
+            <Button
+              onClick={runSendTest}
+              loading={ksefSendBusy}
+              disabled={!form.ksef_token}
+            >
+              <Send className="h-4 w-4" />
+              {ksefSendBusy ? "Wysyłanie testowej faktury…" : "Wyślij testową fakturę do KSeF"}
+            </Button>
+            {ksefSendBusy && (
+              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500 dark:border-white/10 dark:bg-white/5">
+                <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                Wysyłanie testowej faktury — może potrwać do 60 sekund…
+              </div>
+            )}
+            <KsefStepResults result={sendTestResult} busy={ksefSendBusy} />
+          </div>
         </Card>
       )}
 

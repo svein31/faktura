@@ -267,6 +267,7 @@ class RealKsefClient(KsefClient):
                 "systemCode": "FA (2)",
                 "schemaVersion": "1-0E",
                 "value": "FA",
+                "targetNamespace": "http://crd.gov.pl/wzor/2023/06/29/12648/",
             },
             "encryption": {
                 "encryptedSymmetricKey": encrypted_key,

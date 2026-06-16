@@ -216,3 +216,84 @@ async def ksef_auth_test_endpoint(payload: dict = Body(None), user=Depends(get_c
         "steps": steps,
         "message": "Pełna autoryzacja KSeF zakończona sukcesem — token jest gotowy do wysyłki faktur!" if all_ok else "Autoryzacja KSeF nieudana — sprawdź szczegóły kroków poniżej.",
     }
+
+
+@router.post("/ksef-send-test")
+async def ksef_send_test_endpoint(payload: dict = Body(None), user=Depends(get_current_user)):
+    """Send a minimal dummy invoice to KSeF and return detailed step results."""
+    import time
+    from datetime import date as _date
+    from db import db as _db
+    from ksef.client import RealKsefClient, _clean_nip
+    from ksef.xml_gen import generate_fa_xml
+
+    user_settings = await _db.settings.find_one({"user_id": user["user_id"]}, {"_id": 0}) or {}
+    if payload:
+        user_settings.update(payload)
+
+    token = (user_settings.get("ksef_token") or "").strip()
+    env = (user_settings.get("ksef_env") or "test").strip()
+
+    steps = []
+
+    def _step(name: str, ok: bool, detail: str, duration_ms: int):
+        steps.append({"name": name, "ok": ok, "detail": detail, "duration_ms": duration_ms})
+
+    if not token:
+        return {
+            "success": False,
+            "steps": [{"name": "Sprawdzenie tokena", "ok": False,
+                        "detail": "Brak tokena KSeF — uzupełnij i zapisz ustawienia.", "duration_ms": 0}],
+        }
+
+    company = await _db.companies.find_one({"user_id": user["user_id"], "is_active": True}, {"_id": 0})
+    if not company:
+        company = await _db.companies.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    nip = _clean_nip((company or {}).get("nip", ""))
+    if not nip:
+        return {
+            "success": False,
+            "steps": [{"name": "Sprawdzenie NIP", "ok": False,
+                        "detail": "Brak NIP firmy — dodaj firmę w 'Moje Firmy'.", "duration_ms": 0}],
+        }
+
+    today = _date.today().isoformat()
+    dummy_invoice = {
+        "number": f"TEST/{today.replace('-','')}/001",
+        "invoice_type": "FV",
+        "issue_date": today,
+        "sale_date": today,
+        "currency": "PLN",
+        "items": [{"name": "Testowa pozycja KSeF", "quantity": 1, "unit": "szt.", "unit_price_net": 1.00, "net": 1.00, "vat_rate": "23", "vat": 0.23, "gross": 1.23}],
+    }
+    dummy_vat = {"groups": [{"rate": "23", "net": 1.00, "vat": 0.23, "gross": 1.23}], "total_net": 1.00, "total_vat": 0.23, "total_gross": 1.23}
+    seller = {"name": company.get("name", "Test"), "nip": nip, "address": company}
+    buyer = {"name": "NABYWCA TESTOWY", "nip": "0000000000", "address": {"street": "ul. Testowa 1", "postal_code": "00-001", "city": "Warszawa", "country_code": "PL"}}
+
+    t0 = time.time()
+    try:
+        xml = generate_fa_xml(dummy_invoice, seller, buyer, dummy_vat)
+        _step("Generowanie XML faktury", True, f"Rozmiar XML: {len(xml)} bajtów", int((time.time() - t0) * 1000))
+    except Exception as e:
+        _step("Generowanie XML faktury", False, str(e), int((time.time() - t0) * 1000))
+        return {"success": False, "steps": steps}
+
+    client = RealKsefClient(token, env)
+
+    t0 = time.time()
+    try:
+        result = await client.send_invoice_async(xml, nip, today)
+        _step("Wysyłka faktury do KSeF (pełny flow)", True,
+              f"Numer KSeF: {result['ksef_number']} | Referencja: {result['reference_number']} | Status: {result['status']}",
+              int((time.time() - t0) * 1000))
+        return {
+            "success": True,
+            "ksef_number": result["ksef_number"],
+            "reference_number": result["reference_number"],
+            "environment": env,
+            "steps": steps,
+            "message": f"Testowa faktura wysłana do KSeF pomyślnie! Numer KSeF: {result['ksef_number']}",
+        }
+    except Exception as e:
+        _step("Wysyłka faktury do KSeF (pełny flow)", False, str(e), int((time.time() - t0) * 1000))
+        return {"success": False, "steps": steps, "message": f"Błąd wysyłki: {e}"}
