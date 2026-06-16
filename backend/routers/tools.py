@@ -147,8 +147,10 @@ async def ksef_auth_test_endpoint(payload: dict = Body(None), user=Depends(get_c
     try:
         certs = await client._get_certs()
         cert_ok = bool(certs.get("token_cert"))
+        tok_id = certs.get("token_id", "") or ""
+        sym_id = certs.get("sym_id", "") or ""
         _step("Pobranie certyfikatów KSeF", cert_ok,
-              f"Certyfikat KsefTokenEncryption: {'OK' if cert_ok else 'BRAK'} | SymmetricKey: {'OK' if certs.get('sym_cert') else 'BRAK'}",
+              f"KsefTokenEncryption: {'OK' if cert_ok else 'BRAK'} | SymmetricKey: {'OK' if certs.get('sym_cert') else 'BRAK'} | publicKeyId(token): {tok_id[:24] or 'BRAK'} | publicKeyId(sym): {sym_id[:24] or 'BRAK'}",
               int((time.time() - t0) * 1000))
         if not cert_ok:
             return {"success": False, "mode": "real", "environment": env, "steps": steps}
@@ -195,8 +197,28 @@ async def ksef_auth_test_endpoint(payload: dict = Body(None), user=Depends(get_c
               f"sessionRef: {session_ref}",
               int((time.time() - t0) * 1000))
     except Exception as e:
-        _step("Otwarcie sesji online (/sessions/online)", False, str(e), int((time.time() - t0) * 1000))
-        return {"success": False, "mode": "real", "environment": env, "steps": steps}
+        err_str = str(e)
+        # Detect presentPermissions: [] — token lacks InvoiceWrite in KSeF portal
+        import json as _json
+        try:
+            err_json = _json.loads(err_str[err_str.index("{"):]) if "{" in err_str else {}
+        except Exception:
+            err_json = {}
+        sec = err_json.get("security", {})
+        present_perms = sec.get("presentPermissions")
+        required_perms = sec.get("requiredAnyOfPermissions", [])
+        if present_perms is not None and len(present_perms) == 0:
+            detail = (
+                f"BRAK UPRAWNIEŃ TOKENU — Token KSeF nie ma żadnych uprawnień "
+                f"(requiredAnyOf: {', '.join(required_perms)}, presentPermissions: []).\n"
+                f"Rozwiązanie: zaloguj się do portalu KSeF ({('Test: https://ksef-test.mf.gov.pl' if env == 'test' else 'Prod: https://ksef.mf.gov.pl')}), "
+                f"przejdź do Zarządzanie > Uprawnienia > znajdź swój token i dodaj uprawnienie 'InvoiceWrite'. "
+                f"Następnie poczekaj kilka minut i spróbuj ponownie."
+            )
+        else:
+            detail = err_str
+        _step("Otwarcie sesji online (/sessions/online)", False, detail, int((time.time() - t0) * 1000))
+        return {"success": False, "mode": "real", "environment": env, "steps": steps, "permissions_error": present_perms is not None and len(present_perms) == 0}
 
     # Step 5: Zamknięcie sesji
     t0 = time.time()
@@ -295,5 +317,30 @@ async def ksef_send_test_endpoint(payload: dict = Body(None), user=Depends(get_c
             "message": f"Testowa faktura wysłana do KSeF pomyślnie! Numer KSeF: {result['ksef_number']}",
         }
     except Exception as e:
-        _step("Wysyłka faktury do KSeF (pełny flow)", False, str(e), int((time.time() - t0) * 1000))
-        return {"success": False, "steps": steps, "message": f"Błąd wysyłki: {e}"}
+        err_str = str(e)
+        import json as _json2
+        try:
+            err_json2 = _json2.loads(err_str[err_str.index("{"):]) if "{" in err_str else {}
+        except Exception:
+            err_json2 = {}
+        sec2 = err_json2.get("security", {})
+        present_perms2 = sec2.get("presentPermissions")
+        required_perms2 = sec2.get("requiredAnyOfPermissions", [])
+        is_perm_err2 = present_perms2 is not None and len(present_perms2) == 0
+        if is_perm_err2:
+            detail2 = (
+                f"BRAK UPRAWNIEŃ TOKENU — requiredAnyOf: {', '.join(required_perms2)}, presentPermissions: [].\n"
+                f"Rozwiązanie: zaloguj się do portalu KSeF ({('https://ksef-test.mf.gov.pl' if env == 'test' else 'https://ksef.mf.gov.pl')}), "
+                f"przejdź do Zarządzanie → Uprawnienia → Tokeny i dodaj uprawnienie InvoiceWrite do swojego tokenu. "
+                f"Następnie poczekaj ~2 minuty i spróbuj ponownie."
+            )
+        else:
+            detail2 = err_str
+        _step("Wysyłka faktury do KSeF (pełny flow)", False, detail2, int((time.time() - t0) * 1000))
+        return {
+            "success": False,
+            "steps": steps,
+            "environment": env,
+            "permissions_error": is_perm_err2,
+            "message": f"Błąd wysyłki: {e}",
+        }

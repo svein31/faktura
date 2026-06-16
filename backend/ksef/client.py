@@ -180,6 +180,18 @@ class RealKsefClient(KsefClient):
         enc = cipher.encryptor()
         return enc.update(padded) + enc.finalize()
 
+    @staticmethod
+    def _cert_id(cert: dict) -> str:
+        """Extract public key ID from a cert dict — tries all known field names."""
+        return (
+            cert.get("publicKeyId")
+            or cert.get("id")
+            or cert.get("certificateId")
+            or cert.get("certId")
+            or cert.get("keyId")
+            or ""
+        )
+
     async def _get_certs(self) -> dict:
         """Fetch public key certs and return dict with 'token_cert' and 'sym_cert' items."""
         async with httpx.AsyncClient(timeout=15, verify=True) as c:
@@ -189,24 +201,35 @@ class RealKsefClient(KsefClient):
 
         token_cert = None
         sym_cert = None
-        for item in (certs if isinstance(certs, list) else []):
+
+        items = certs if isinstance(certs, list) else []
+        for item in items:
             usage = item.get("usage", [])
+            if isinstance(usage, str):
+                usage = [usage]
             if "KsefTokenEncryption" in usage and not token_cert:
                 token_cert = item
             if "SymmetricKeyEncryption" in usage and not sym_cert:
                 sym_cert = item
 
-        # Fallback if structure uses top-level field
-        if not token_cert and not sym_cert and isinstance(certs, list) and certs:
-            token_cert = certs[0]
-            sym_cert = certs[0]
+        # Fallback: certs without usage tags
+        if not token_cert and items:
+            token_cert = items[0]
+        if not sym_cert and items:
+            sym_cert = items[-1] if len(items) > 1 else items[0]
 
         if not token_cert:
-            raise ValueError("Brak certyfikatu KsefTokenEncryption z serwera KSeF.")
+            raise ValueError(f"Brak certyfikatu KsefTokenEncryption. Surowa odpowiedź: {str(certs)[:400]}")
         if not sym_cert:
-            sym_cert = token_cert  # often same cert supports both
+            sym_cert = token_cert
 
-        return {"token_cert": token_cert, "sym_cert": sym_cert}
+        # Validate IDs are present
+        tok_id = self._cert_id(token_cert)
+        sym_id = self._cert_id(sym_cert)
+        if not tok_id:
+            raise ValueError(f"Certyfikat tokenowy nie ma pola publicKeyId. Pola: {list(token_cert.keys())}")
+
+        return {"token_cert": token_cert, "sym_cert": sym_cert, "token_id": tok_id, "sym_id": sym_id}
 
     async def _get_challenge(self, nip: str) -> dict:
         """POST /api/v2/auth/challenge → {challenge, timestampMs}"""
@@ -227,14 +250,13 @@ class RealKsefClient(KsefClient):
         payload_str = f"{self.token}|{timestamp_ms}"
         encrypted = self._rsa_oaep_encrypt(token_cert["certificate"], payload_str.encode("utf-8"))
 
+        pub_key_id = self._cert_id(token_cert)
         body = {
             "challenge": challenge,
             "contextIdentifier": {"type": "Nip", "value": nip},
             "encryptedToken": encrypted,
+            "publicKeyId": pub_key_id,
         }
-        pub_key_id = token_cert.get("publicKeyId") or token_cert.get("certificateId")
-        if pub_key_id:
-            body["publicKeyId"] = pub_key_id
 
         async with httpx.AsyncClient(timeout=15, verify=True) as c:
             r = await c.post(
@@ -272,7 +294,7 @@ class RealKsefClient(KsefClient):
             "encryption": {
                 "encryptedSymmetricKey": encrypted_key,
                 "initializationVector": base64.b64encode(iv).decode(),
-                "publicKeyId": sym_cert.get("publicKeyId", sym_cert.get("certificateId", "")),
+                "publicKeyId": self._cert_id(sym_cert),
             },
         }
 

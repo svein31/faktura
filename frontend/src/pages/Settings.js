@@ -9,6 +9,11 @@ import { PAYMENT_METHODS, PAYMENT_TERMS } from "@/lib/format";
 
 function KsefStepResults({ result, busy }) {
   if (!result || busy) return null;
+  const isPermErr = result.permissions_error ||
+    (result.steps || []).some(s => !s.ok && (s.detail || "").includes("BRAK UPRAWNIEŃ TOKENU"));
+  const portalUrl = result.environment === "prod"
+    ? "https://ksef.mf.gov.pl"
+    : "https://ksef-test.mf.gov.pl";
   return (
     <div className="space-y-2">
       <div className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-semibold ${
@@ -17,8 +22,31 @@ function KsefStepResults({ result, busy }) {
           : "border-red-200 bg-red-50 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
       }`}>
         {result.success ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <XCircle className="h-4 w-4 shrink-0" />}
-        {result.message || (result.success ? "Sukces" : "Błąd")}
+        {result.message || (result.success ? "Autoryzacja KSeF zakończona sukcesem" : "Autoryzacja KSeF nieudana — sprawdź szczegóły")}
       </div>
+
+      {isPermErr && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 p-4 space-y-2">
+          <div className="flex items-start gap-2">
+            <span className="text-lg leading-none">⚠️</span>
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Token nie ma uprawnień InvoiceWrite w portalu KSeF</p>
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                KSeF zwrócił <code className="font-mono bg-amber-100 dark:bg-amber-900/40 px-1 rounded">presentPermissions: []</code> — token działa, ale nie ma przypisanego uprawnienia do wystawiania faktur.
+              </p>
+              <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 mt-2">Co zrobić:</p>
+              <ol className="text-xs text-amber-700 dark:text-amber-400 space-y-1 list-decimal list-inside">
+                <li>Zaloguj się do portalu KSeF: <a href={portalUrl} target="_blank" rel="noreferrer" className="underline font-medium">{portalUrl}</a></li>
+                <li>Przejdź do <strong>Zarządzanie → Uprawnienia → Tokeny</strong></li>
+                <li>Znajdź swój token i kliknij <strong>Edytuj</strong></li>
+                <li>Zaznacz uprawnienie <strong>InvoiceWrite</strong> (lub FeInvoiceWrite)</li>
+                <li>Zapisz i odczekaj ~2 minuty, następnie kliknij „Testuj ponownie"</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      )}
+
       {(result.steps || []).length > 0 && (
         <div className="rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden">
           {(result.steps || []).map((step, i) => (
@@ -37,7 +65,7 @@ function KsefStepResults({ result, busy }) {
                     </span>
                   )}
                 </div>
-                <p className={`mt-0.5 break-all font-mono text-[11px] leading-relaxed ${step.ok ? "text-slate-500 dark:text-slate-400" : "text-red-600 dark:text-red-400"}`}>
+                <p className={`mt-0.5 break-all font-mono text-[11px] leading-relaxed whitespace-pre-wrap ${step.ok ? "text-slate-500 dark:text-slate-400" : "text-red-600 dark:text-red-400"}`}>
                   {step.detail}
                 </p>
               </div>
